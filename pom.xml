@@ -31,7 +31,7 @@
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>db.Application</mainClass>
+                            <mainClass>api.Application</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
