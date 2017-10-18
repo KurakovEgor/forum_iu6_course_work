@@ -1,0 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS citext;
+ALTER TABLE users ALTER COLUMN email TYPE citext;
+ALTER TABLE users ALTER COLUMN about TYPE citext;
+ALTER TABLE users ALTER COLUMN fullname TYPE citext;
+ALTER TABLE users ALTER COLUMN nickname TYPE citext;
