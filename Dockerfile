@@ -9,9 +9,9 @@ USER postgres
 #JDBC_DATABASE_URL=jdbc:postgresql://localhost:5432/park_db;=;=;PGDATABASE=park_db
 
 RUN service postgresql start &&\
-    psql -c "CREATE ROLE park_user WITH SUPERUSER ENCRYPTED PASSWORD 'park_user_admin_pass';" &&\
+    psql -c "CREATE ROLE park_user WITH SUPERUSER LOGIN ENCRYPTED PASSWORD 'park_user_admin_pass';" &&\
     psql -c "CREATE DATABASE park_db;" &&\
-    psql -c "GRANT ALL ON park_db TO park_user;" &&\
+    psql -c "GRANT ALL ON DATABASE park_db TO park_user;" &&\
     service postgresql stop
 
 USER root
