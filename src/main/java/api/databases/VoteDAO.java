@@ -33,7 +33,7 @@ public class VoteDAO {
 
     public Thread vote(Integer voice, String threadSlug, String nickname) {
 
-        String sql = "SELECT * FROM threads WHERE LOWER(slug) = LOWER(?)";
+        String sql = "SELECT * FROM threads WHERE slug = ?::citext";
         Thread thread;
         try {
             thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, threadSlug);

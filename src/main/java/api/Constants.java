@@ -12,4 +12,6 @@ public class Constants {
         public static final String POST_API_PATH = BASE_API_PATH + "/post";
         public static final String SERVICE_API_PATH = BASE_API_PATH + "/service";
     }
+
+    public static final String hikariConfigPath = System.getProperty("user.dir") + "/src/main/resources/hikari.properties";
 }

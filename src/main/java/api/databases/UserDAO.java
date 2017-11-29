@@ -45,14 +45,14 @@ public class UserDAO {
         if (fullname != null) {
             if (email != null) {
                 if (about != null) {
-                    String sql = "UPDATE users SET about = ?, email = ?, fullname = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET about = ?, email = ?, fullname = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, about, email, fullname, nickname);
                     } catch (DuplicateKeyException e) {
                         throw e;
                     }
                 } else {
-                    String sql = "UPDATE users SET email = ?, fullname = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET email = ?, fullname = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, email, fullname, nickname);
                     } catch (DuplicateKeyException e) {
@@ -61,14 +61,14 @@ public class UserDAO {
                 }
             } else {
                 if (about != null) {
-                    String sql = "UPDATE users SET about = ?, fullname = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET about = ?, fullname = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, about, fullname, nickname);
                     } catch (DuplicateKeyException e) {
                         throw e;
                     }
                 } else {
-                    String sql = "UPDATE users SET fullname = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET fullname = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, fullname, nickname);
                     } catch (DuplicateKeyException e) {
@@ -79,14 +79,14 @@ public class UserDAO {
         } else {
             if (email != null) {
                 if (about != null) {
-                    String sql = "UPDATE users SET about = ?, email = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET about = ?, email = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, about, email, nickname);
                     } catch (DuplicateKeyException e) {
                         throw e;
                     }
                 } else {
-                    String sql = "UPDATE users SET email = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET email = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, email, nickname);
                     } catch (DuplicateKeyException e) {
@@ -95,7 +95,7 @@ public class UserDAO {
                 }
             } else {
                 if (about != null) {
-                    String sql = "UPDATE users SET about = ? WHERE LOWER(nickname) = LOWER(?)";
+                    String sql = "UPDATE users SET about = ? WHERE nickname = ?::citext";
                     try {
                         jdbcTemplateObject.update(sql, about, nickname);
                     } catch (DuplicateKeyException e) {
@@ -113,7 +113,7 @@ public class UserDAO {
     }
 
     public User getUserByNickName(String nickname) {
-        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?)";
+        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
         User user = null;
         try {
             user = jdbcTemplateObject.queryForObject(sql,
@@ -126,7 +126,7 @@ public class UserDAO {
     }
 
     public Boolean isCreated(String nickname){
-        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?)";
+        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
         User user = null;
         try {
             user = jdbcTemplateObject.queryForObject(sql,
@@ -138,7 +138,7 @@ public class UserDAO {
     }
 
     public List<User> getUsersWithNickNameOrEmail(String nickname, String email) {
-        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?) OR LOWER(email) = LOWER(?)";
+        String sql = "SELECT * FROM users WHERE nickname = ?::citext OR email = ?::citext";
 //        List<User> users = null;
 //        try {
 //            users = jdbcTemplateObject.queryForObject(sql,
@@ -158,6 +158,7 @@ public class UserDAO {
     }
 
     public List<User> getUsersFromForum(String forum_slug, Integer limit, String since, Boolean desc) {
+        //TODO: Денормализовать всё что здесь есть и джойнить по id
         String sql = "SELECT DISTINCT * FROM (" +
                 "  SELECT\n" +
                 "    u1.id       AS id," +
@@ -167,7 +168,7 @@ public class UserDAO {
                 "    u1.about    AS about" +
                 "  FROM posts AS p" +
                 "    JOIN users AS u1 ON (p.author = u1.nickname)" +
-                "  WHERE LOWER(forum) = LOWER(?)" +
+                "  WHERE forum = ?::citext" +
                 "  UNION SELECT" +
                 "          u2.id       AS id," +
                 "          u2.nickname AS nickname," +
@@ -176,13 +177,13 @@ public class UserDAO {
                 "          u2.about    AS about" +
                 "        FROM threads AS t" +
                 "          JOIN users AS u2 ON (t.author = u2.nickname)" +
-                "        WHERE LOWER(forum) = LOWER(?) " +
+                "        WHERE forum = ?::citext " +
                 ") users ";
         if (since != null) {
             if (desc != null && desc == true) {
-                sql += "WHERE LOWER(nickname) < LOWER(?) ";
+                sql += "WHERE nickname < ?::citext ";
             } else {
-                sql += "WHERE LOWER(nickname) > LOWER(?) ";
+                sql += "WHERE nickname > ?::citext ";
             }
         }
         sql += "ORDER BY nickname ";

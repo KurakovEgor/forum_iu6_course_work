@@ -4,6 +4,8 @@ import api.Exceptions;
 import api.models.Post;
 import api.models.PostWithInfo;
 import api.models.Thread;
+import com.sun.org.apache.xpath.internal.operations.Bool;
+import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -11,6 +13,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.List;
 
@@ -24,8 +29,12 @@ import static api.databases.Mappers.*;
 @Transactional
 public class PostDAO {
     private JdbcTemplate jdbcTemplateObject;
-    public PostDAO(JdbcTemplate jdbcTemplateObject) {
+    private Connection connection;
+    public PostDAO(JdbcTemplate jdbcTemplateObject, HikariDataSource hikariDataSource) {
         this.jdbcTemplateObject = jdbcTemplateObject;
+        try {
+            connection = hikariDataSource.getConnection();
+        } catch (SQLException ignore) {};
     }
 
     @Autowired
@@ -49,7 +58,7 @@ public class PostDAO {
                     throw new Exceptions.NotFoundUser();
                 }
                 if (post.getThread() == null) {
-                    sql = "SELECT * FROM threads WHERE LOWER(slug) = LOWER(?)";
+                    sql = "SELECT * FROM threads WHERE slug = ?::citext";
                     Thread thread;
                     try {
                         thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, post.getThreadSlug());
@@ -73,33 +82,41 @@ public class PostDAO {
                 if(!threadDAO.isCreated(post.getThread())) {
                     throw new Exceptions.NotFoundThread();
                 }
-                if(post.getParent() != 0) {
-                    sql = "SELECT * FROM posts WHERE id = ?";
+                List<Integer> path;
+                if(!post.getParent().equals(0)) {
+//                    sql = "SELECT * FROM posts WHERE id = ?";
                     Post parent = null;
                     try{
-                        parent = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getParent());
-                    } catch (EmptyResultDataAccessException e) {
+                        parent = getPost(post.getParent());
+                        //parent = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getParent());
+                    } catch (Exceptions.NotFoundPost e) {
                         throw new Exceptions.InvalidParrent();
                     }
+                    path = parent.getChildren();
+                    path.add(parent.getId());
                     if (!parent.getThread().equals(post.getThread())) {
                         throw new Exceptions.InvalidParrent();
                     }
+                } else {
+                    path = new ArrayList<>();
+                    path.add(0);
                 }
-                if (post.getParent() != 0 && post.getParent() != null) {
-                    sql = "UPDATE posts SET children = array_append(children, ?) WHERE id = ? RETURNING *";
-                    jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getId(), post.getParent());
-                }
+//                if (post.getParent() != 0 && post.getParent() != null) {
+//                    sql = "UPDATE posts SET children = array_append(children, ?) WHERE id = ? RETURNING *";
+//                    jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getId(), post.getParent());
+//                }
+
                 if (post.getCreated() == null) {
-                    sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?) RETURNING *";
+                    sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?) RETURNING *";
                     Post readyPost = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getAuthor(),
                             post.getForum(), post.getIsEdited(),
-                            post.getMessage(), post.getParent(), post.getThread());
+                            post.getMessage(), post.getParent(), post.getThread(), createSqlArray(path));
                     readyPosts.add(readyPost);
                 } else {
-                    sql = "INSERT INTO posts (author, created, forum, is_editted, message, parent, thread_id) VALUES (?, ?::TIMESTAMPTZ , ?, ?::BOOLEAN, ?, ?, ?) RETURNING *";
+                    sql = "INSERT INTO posts (author, created, forum, is_editted, message, parent, thread_id, children) VALUES (?, ?::TIMESTAMPTZ , ?, ?::BOOLEAN, ?, ?, ?, ?) RETURNING *";
                     Post readyPost = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getAuthor(),
                             post.getCreated(), post.getForum(), post.getIsEdited(),
-                            post.getMessage(), post.getParent(), post.getThread());
+                            post.getMessage(), post.getParent(), post.getThread(), createSqlArray(path));
                     readyPosts.add(readyPost);
                 }
             }
@@ -109,7 +126,8 @@ public class PostDAO {
         }
     }
     public Post getPost(Integer id) {
-        String sql = "SELECT * FROM posts WHERE id = ?";
+        String sql = "SELECT " +
+                "* FROM posts WHERE id = ?";
         Post post;
         try {
             post = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, id);
@@ -120,7 +138,7 @@ public class PostDAO {
         return post;
     }
     public PostWithInfo getPostWithInfo(Integer id, Boolean needAuthor, Boolean needThread, Boolean needForum) {
-        String sql;
+        //TODO: Денормализовать всё что здесь есть и джойнить по id
         Post post = getPost(id);
         PostWithInfo result = new PostWithInfo(post);
         if (needAuthor) {
@@ -265,89 +283,6 @@ public class PostDAO {
         return posts;
 
     }
-    private List<Post> getPostFromThreadSortedByTreeOld(Thread thread, Integer limit, Integer since, Boolean desc) {
-        Integer sinceId = null;
-//        try {
-//            sinceId = Integer.parseInt(since);
-//        } catch (NumberFormatException e) {
-//            sinceId = null;
-//        }
-        String sql;
-        if (since == null) {
-            sql = "SELECT * FROM posts WHERE thread_id = ? AND parent = 0 ORDER BY created, id ";
-            if (desc != null && desc == true) {
-                sql = "SELECT * FROM posts WHERE thread_id = ? ORDER BY created DESC, id DESC ";
-            }
-        } else {
-            if(sinceId == null) {
-                if (desc != null && desc == true) {
-                    sql = "SELECT * FROM posts WHERE thread_id = ? AND created <= ?::TIMESTAMPTZ ORDER BY created DESC ";
-                } else {
-                    sql = "SELECT * FROM posts WHERE thread_id = ? AND created >= ?::TIMESTAMPTZ AND parent = 0 ORDER BY created ";
-                }
-            } else {
-                if (desc != null && desc == true) {
-                    sql = "SELECT * FROM posts WHERE thread_id = ? AND id < ? ORDER BY created DESC ";
-                } else {
-                    sql = "SELECT * FROM posts WHERE thread_id = ? AND id > ? AND parent = 0 ORDER BY created ";
-                }
-            }
-        }
-        if (limit != null) {
-            sql += "LIMIT ?";
-        }
-
-        List<Post> posts = null;
-        if (limit == null) {
-            if (since == null) {
-                posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
-            } else {
-                if( sinceId == null){
-                    posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), since);
-                } else {
-                    posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), sinceId);
-                }
-            }
-        } else {
-            if (since == null) {
-                posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), limit);
-            } else {
-                if(sinceId ==  null){
-                    posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), since, limit);
-                } else {
-                    posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), sinceId, limit);
-                }
-            }
-        }
-        List<Post> sortedPosts = new ArrayList<>();
-        if (desc == null || desc == false) {
-
-            for (Post post : posts) {
-                sortedPosts.addAll(createTree(post));
-                if (sortedPosts.size() > limit) {
-                    while (sortedPosts.size() != limit) {
-                        sortedPosts.remove(sortedPosts.size() - 1);
-                    }
-                    break;
-                }
-            }
-        } else  {
-//            for (Post post : posts) {
-//                sortedPosts.addAll(createReversedTree(post));
-//            }
-//            Set<Integer> idOfPosts = new HashSet<>();
-//            int i = 0;
-//            while (i < sortedPosts.size()) {
-//                if(!idOfPosts.contains(sortedPosts.get(i).getId()) && (limit == null || i < limit)){
-//                    idOfPosts.add(i);
-//                    ++i;
-//                } else{
-//                    sortedPosts.remove(i);
-//                }
-//            }
-        }
-        return sortedPosts;
-    }
     private List<Post> getPostFromThreadSortedByTree(Thread thread, Integer limit, Integer since, Boolean desc) {
         List<Post> posts = createTree(getRootPostsFromThread(thread));
         List<Post> resultPosts = new ArrayList<>();
@@ -401,78 +336,47 @@ public class PostDAO {
         } else {
             List<Post> posts = createTree(getRootPostsFromThread(thread));
             Collections.reverse(posts);
-            List<Post> rootPostWithChildren;
+            List<Post> rootPostWithChildren = null;
             Integer roots = 0;
-            Boolean flag = false;
+            Boolean flag = true;
+            Boolean achieveSince = (since == null) ? true : false;
             for(Post post : posts) {
-                if( since != null && post.getId() < since) {
-                    flag = true;
-                }
-                if((since == null || flag) && post.getParent().equals(0)){
-                    rootPostWithChildren = createReversedTree(post);
-                    if (limit != null && roots < limit) {
-                        resultPosts.addAll(rootPostWithChildren);
-                        roots++;
-                        if (roots == limit) {
-                            break;
+                if( !achieveSince && post.getId() < since) {
+                    achieveSince = true;
+                } else if( !achieveSince ) {
+                    if( post.getParent().equals(0)) {
+                        rootPostWithChildren = null;
+                    } else {
+                        if (rootPostWithChildren == null) {
+                            rootPostWithChildren = new ArrayList<>();
                         }
+                        rootPostWithChildren.add(post);
+                    }
+                }
+
+                if( achieveSince ) {
+
+                    if (rootPostWithChildren == null) {
+                        rootPostWithChildren = new ArrayList<>();
+                    } else if (flag) {
+                        flag = false;
+                    }
+                    rootPostWithChildren.add(post);
+                    if(post.getParent().equals(0)) {
+                        roots++;
+                    }
+                    if (limit != null && roots.equals(limit)) {
+                        break;
                     }
                 }
             }
+            resultPosts = (rootPostWithChildren == null) ? new ArrayList<>() : rootPostWithChildren;
         }
         return resultPosts;
 
     }
-    private List<Post> getPostFromThreadSortedByParentTreeOld(Thread thread, Integer limit, Integer since, Boolean desc) {
-        String sql;
-        if (since == null) {
-            sql = "SELECT * FROM posts WHERE thread_id = ? AND parent = 0 ORDER BY created, id ";
-            if (desc != null && desc == true) {
-                sql = "SELECT * FROM posts WHERE thread_id = ? AND parent = 0 ORDER BY created DESC, id DESC ";
-            }
-        } else {
-            if (desc != null && desc == true) {
-                sql = "SELECT * FROM posts WHERE thread_id = ? AND id < ? AND parent = 0 ORDER BY created DESC ";
-            } else {
-                sql = "SELECT * FROM posts WHERE thread_id = ? AND id > ? AND parent = 0 ORDER BY created ";
-            }
-        }
-        if (limit != null) {
-            sql += "LIMIT ?";
-        }
-
-        List<Post> posts = null;
-        if (limit == null) {
-            if (since == null) {
-                posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
-            } else {
-                posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), since);
-            }
-        } else {
-            if (since == null) {
-                posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), limit);
-            } else {
-                posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId(), since, limit);
-            }
-        }
-        List<Post> sortedPosts = new ArrayList<>();
-        if(desc == null || desc == false) {
-            for (Post post : posts) {
-                sortedPosts.addAll(createTree(post));
-            }
-        } else {
-            for (Post post : posts) {
-                sortedPosts.addAll(createReversedTree(post));
-            }
-        }
-        return sortedPosts;
-    }
     private List<Post> getChildrenPosts(Post post) {
         String sql = "SELECT * FROM posts WHERE parent = ? ORDER BY created, id";
-        return jdbcTemplateObject.query(sql, POST_ROW_MAPPER, post.getId());
-    }
-    private List<Post> getReversedChildrenPosts(Post post) {
-        String sql = "SELECT * FROM posts WHERE parent = ? ORDER BY created DESC, id DESC";
         return jdbcTemplateObject.query(sql, POST_ROW_MAPPER, post.getId());
     }
     private List<Post> createTree(Post post) {
@@ -494,120 +398,18 @@ public class PostDAO {
         String sql = "SELECT * FROM posts WHERE thread_id = ? AND parent = 0 ORDER BY id";
         return jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
     }
-    private Map<Integer,List<Post>> splitPostsByParent(List<Post> sortedPosts) {
-        Map<Integer,List<Post>> result = new HashMap<>();
-        for(Post post : sortedPosts) {
-            if(!result.containsKey(post.getId())) {
-                result.put(post.getId(), new ArrayList<>());
-            }
-            result.get(post.getId()).add(post);
+    private Array createSqlArray(List<Integer> list) {
+        Array intArray = null;
+        try {
+            intArray = connection.createArrayOf("int4", list.toArray());
+        } catch (SQLException ignore) {
         }
-        return result;
-    }
-    private List<Post> createReversedTree(Post post) {
-        List<Post> posts = new ArrayList<>();
-
-        for(Post childPost : getReversedChildrenPosts(post)) {
-            posts.addAll(createReversedTree(childPost));
-        }
-        posts.add(post);
-        return posts;
-    }
-    private List<Post> createReversedTree(List<Post> posts) {
-        List<Post> sortedPosts = new ArrayList<>();
-        for(Post post : posts) {
-            sortedPosts.addAll(createReversedTree(post));
-        }
-        return sortedPosts;
+        return intArray;
     }
     public Integer numOfPosts() {
         String sql = "SELECT COUNT(*) FROM posts";
         return jdbcTemplateObject.queryForObject(sql, Integer.class);
     }
 
-//    public Thread getThreadByTitle(String title) {
-//        String sql = "SELECT * FROM threads WHERE LOWER(title) = LOWER(?)";
-//        Thread thread = null;
-//        try {
-//            thread = jdbcTemplateObject.queryForObject(sql,
-//                    THREAD_ROW_MAPPER, title);
-//        } catch (EmptyResultDataAccessException e) {
-//
-//        }
-//
-//        return thread;
-//    }
-//
-//    public List<Thread> getThreadsFromForum(String forum_slug, Integer limit, String since, Boolean desc) {
-//        String sql = null;
-//        if (since == null){
-//            sql = "SELECT * FROM threads WHERE LOWER(forum) = LOWER(?) ORDER BY created ";
-//            if (desc != null && desc == true) {
-//                sql += "DESC ";
-//            }
-//        } else {
-//            if (desc != null && desc == true) {
-//                sql = "SELECT * FROM threads WHERE LOWER(forum) = LOWER(?) AND created <= ?::TIMESTAMPTZ ORDER BY created DESC ";
-//            } else {
-//                sql = "SELECT * FROM threads WHERE LOWER(forum) = LOWER(?) AND created >= ?::TIMESTAMPTZ ORDER BY created ";
-//            }
-//        }
-//        if (limit != null) {
-//            sql += "LIMIT ?";
-//        }
-//
-//        List<Thread> threads = null;
-//        if(limit == null) {
-//            if(since == null) {
-//                threads = jdbcTemplateObject.query(sql, THREAD_ROW_MAPPER, forum_slug);
-//            } else {
-//                threads = jdbcTemplateObject.query(sql, THREAD_ROW_MAPPER, forum_slug, since);
-//            }
-//        } else {
-//            if(since == null) {
-//                threads = jdbcTemplateObject.query(sql, THREAD_ROW_MAPPER, forum_slug, limit);
-//            } else {
-//                threads = jdbcTemplateObject.query(sql, THREAD_ROW_MAPPER, forum_slug, since, limit);
-//            }
-//        }
-//        return threads;
-//    }
-
-//    public void updateUserWithNickName(String fullname, String email, String nickname, String about) {
-//        final String sql = "UPDATE users SET about = ?, email = ?, fullname = ? WHERE LOWER(nickname) = LOWER(?)";
-//
-//        try {
-//            jdbcTemplateObject.update(sql, about, email, fullname, nickname);
-//        } catch (DuplicateKeyException e) {
-//            throw e;
-//        }
-////        try {
-////            jdbcTemplateObject.query(sql, USER_ROW_MAPPER);
-////            //jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, about, email, fullname, nickname);
-////        } catch (NullPointerException e) {
-////
-////        }
-//    }
-//
-
-//
-//    public List<User> getUsersWithNickNameOrEmail(String nickname, String email) {
-//        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?) OR LOWER(email) = LOWER(?)";
-////        List<User> users = null;
-////        try {
-////            users = jdbcTemplateObject.queryForObject(sql,
-////                    USERS_ROW_MAPPER, nickname, email);
-////        } catch (EmptyResultDataAccessException e) {
-////
-////        }
-////        return users;
-//        List<User> users = null;
-//        try {
-//            users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, nickname, email);
-//        } catch (EmptyResultDataAccessException e) {
-//
-//        }
-//
-//        return users;
-//    }
+    //TODO: Index on parents
 }

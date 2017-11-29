@@ -10,6 +10,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+
 import static api.databases.Mappers.FORUM_ROW_MAPPER;
 import static api.databases.Mappers.USER_ROW_MAPPER;
 
@@ -21,12 +26,19 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
 @Transactional
 public class ForumDAO {
     private JdbcTemplate jdbcTemplateObject;
+    private Connection connection;
+
     public ForumDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
-    }
-    public void createForum(String slug, String title, String user_nickname) {
+        try {
+            connection = jdbcTemplateObject.getDataSource().getConnection();
+        } catch (SQLException ex) {
 
-        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?)";
+        }
+    }
+
+    public void createForum(String slug, String title, String user_nickname) {
+        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
         User user = null;
         try {
             user = jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, user_nickname);
@@ -43,12 +55,14 @@ public class ForumDAO {
 
         }
     }
+
     public Integer numOfForums() {
         String sql = "SELECT COUNT(*) FROM forums";
         return jdbcTemplateObject.queryForObject(sql, Integer.class);
     }
+
     public Forum getForumBySlug(String slug) {
-        String sql = "SELECT * FROM forums WHERE LOWER(slug) = LOWER(?)";
+        String sql = "SELECT * FROM forums WHERE slug = ?::citext";
         Forum forum = null;
         try {
             forum = jdbcTemplateObject.queryForObject(sql,
@@ -56,51 +70,13 @@ public class ForumDAO {
         } catch (EmptyResultDataAccessException e) {
             throw new Exceptions.NotFoundForum();
         }
-        sql = "SELECT COUNT(*) from threads where forum = ?";
+        sql = "SELECT COUNT(*) FROM threads WHERE forum = ?";
         Integer threads = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
         forum.setThreads(threads);
-        sql = "SELECT COUNT(*) from posts where forum = ?";
+        sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
         Integer posts = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
         forum.setPosts(posts);
         return forum;
     }
 
-
-//    public void updateUserWithNickName(String fullname, String email, String nickname, String about) {
-//        final String sql = "UPDATE users SET about = ?, email = ?, fullname = ? WHERE LOWER(nickname) = LOWER(?)";
-//
-//        try {
-//            jdbcTemplateObject.update(sql, about, email, fullname, nickname);
-//        } catch (DuplicateKeyException e) {
-//            throw e;
-//        }
-////        try {
-////            jdbcTemplateObject.query(sql, USER_ROW_MAPPER);
-////            //jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, about, email, fullname, nickname);
-////        } catch (NullPointerException e) {
-////
-////        }
-//    }
-//
-
-//
-//    public List<User> getUsersWithNickNameOrEmail(String nickname, String email) {
-//        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?) OR LOWER(email) = LOWER(?)";
-////        List<User> users = null;
-////        try {
-////            users = jdbcTemplateObject.queryForObject(sql,
-////                    USERS_ROW_MAPPER, nickname, email);
-////        } catch (EmptyResultDataAccessException e) {
-////
-////        }
-////        return users;
-//        List<User> users = null;
-//        try {
-//            users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, nickname, email);
-//        } catch (EmptyResultDataAccessException e) {
-//
-//        }
-//
-//        return users;
-//    }
 }

@@ -24,15 +24,6 @@ public class ServiceDAO {
                 "TRUNCATE TABLE threads;" +
                 "TRUNCATE TABLE forums;" +
                 "TRUNCATE TABLE users;";
-//        String sql = "DELETE FROM votes *";
-//        jdbcTemplateObject.update(sql);
-//        sql = "DELETE FROM posts *";
-//        jdbcTemplateObject.update(sql);
-//        sql = "DELETE FROM threads *";
-//        jdbcTemplateObject.update(sql);
-//        sql = "DELETE FROM forums *";
-//        jdbcTemplateObject.update(sql);
-//        sql = "DELETE FROM users *";
         jdbcTemplateObject.update(sql);
     }
 

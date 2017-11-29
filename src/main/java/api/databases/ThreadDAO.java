@@ -29,14 +29,14 @@ public class ThreadDAO {
     }
     public Thread createThread(String slug, String author, String created, String forum, String message, String title) {
 
-        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?)";
+        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
         try {
             jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, author);
         } catch (EmptyResultDataAccessException e) {
             throw new Exceptions.NotFoundUser();
         }
 
-        sql = "SELECT * FROM forums WHERE LOWER(slug) = LOWER(?)";
+        sql = "SELECT * FROM forums WHERE slug = ?::citext";
         try {
             Forum gotForum = jdbcTemplateObject.queryForObject(sql, FORUM_ROW_MAPPER, forum);
             forum = gotForum.getSlug();
@@ -55,7 +55,7 @@ public class ThreadDAO {
         }
     }
     public Thread getThreadBySlug(String slug) {
-        String sql = "SELECT * FROM threads WHERE LOWER(slug) = LOWER(?)";
+        String sql = "SELECT * FROM threads WHERE slug = ?::citext";
         Thread thread = null;
         try {
             thread = jdbcTemplateObject.queryForObject(sql,
@@ -79,15 +79,15 @@ public class ThreadDAO {
     public List<Thread> getThreadsFromForum(String forum_slug, Integer limit, String since, Boolean desc) {
         String sql = null;
         if (since == null){
-            sql = "SELECT * FROM threads WHERE LOWER(forum) = LOWER(?) ORDER BY created ";
+            sql = "SELECT * FROM threads WHERE forum = ?::citext ORDER BY created ";
             if (desc != null && desc == true) {
                 sql += "DESC ";
             }
         } else {
             if (desc != null && desc == true) {
-                sql = "SELECT * FROM threads WHERE LOWER(forum) = LOWER(?) AND created <= ?::TIMESTAMPTZ ORDER BY created DESC ";
+                sql = "SELECT * FROM threads WHERE forum = ?::citext AND created <= ?::TIMESTAMPTZ ORDER BY created DESC ";
             } else {
-                sql = "SELECT * FROM threads WHERE LOWER(forum) = LOWER(?) AND created >= ?::TIMESTAMPTZ ORDER BY created ";
+                sql = "SELECT * FROM threads WHERE forum = ?::citext AND created >= ?::TIMESTAMPTZ ORDER BY created ";
             }
         }
         if (limit != null) {
@@ -136,7 +136,7 @@ public class ThreadDAO {
             sql += "title = ?, ";
         }
         sql = sql.substring(0,sql.length() - 2);
-        sql += " WHERE LOWER(slug) = LOWER(?)";
+        sql += " WHERE slug = ?::citext";
 
         try {
             if(author == null){
@@ -302,7 +302,7 @@ public class ThreadDAO {
 //        }
     }
     public Boolean isCreated(String threadSlug) {
-        String sql = "SELECT * FROM threads WHERE LOWER(slug) = LOWER(?)";
+        String sql = "SELECT * FROM threads WHERE slug = ?::citext";
         try {
              jdbcTemplateObject.queryForObject(sql,
                     THREAD_ROW_MAPPER, threadSlug);
@@ -315,26 +315,4 @@ public class ThreadDAO {
         String sql = "SELECT COUNT(*) FROM threads";
         return jdbcTemplateObject.queryForObject(sql, Integer.class);
     }
-
-
-//
-//    public List<User> getUsersWithNickNameOrEmail(String nickname, String email) {
-//        String sql = "SELECT * FROM users WHERE LOWER(nickname) = LOWER(?) OR LOWER(email) = LOWER(?)";
-////        List<User> users = null;
-////        try {
-////            users = jdbcTemplateObject.queryForObject(sql,
-////                    USERS_ROW_MAPPER, nickname, email);
-////        } catch (EmptyResultDataAccessException e) {
-////
-////        }
-////        return users;
-//        List<User> users = null;
-//        try {
-//            users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, nickname, email);
-//        } catch (EmptyResultDataAccessException e) {
-//
-//        }
-//
-//        return users;
-//    }
 }

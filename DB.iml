@@ -50,7 +50,7 @@
     <orderEntry type="library" name="Maven: org.apache.tomcat:tomcat-juli:8.5.20" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-jdbc:4.3.11.RELEASE" level="project" />
     <orderEntry type="library" name="Maven: org.springframework:spring-tx:4.3.11.RELEASE" level="project" />
-    <orderEntry type="library" name="Maven: com.zaxxer:HikariCP:2.5.1" level="project" />
+    <orderEntry type="library" name="Maven: com.zaxxer:HikariCP:2.7.2" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.25" level="project" />
     <orderEntry type="library" scope="RUNTIME" name="Maven: org.postgresql:postgresql:42.1.4" level="project" />
     <orderEntry type="library" name="Maven: org.flywaydb:flyway-core:3.2.1" level="project" />
