@@ -40,16 +40,17 @@ public class ForumController {
 
     @PostMapping(path = "/create", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<?> createForum(@RequestBody ForumRequest request) {
+        Forum forum;
         try {
-            forumDAO.createForum(request.getSlug(), request.getTitle(), request.getUser());
+            forum = forumDAO.createForum(request.getSlug(), request.getTitle(), request.getUser());
         } catch (DuplicateKeyException e) {
-            Forum forum = forumDAO.getForumBySlug(request.getSlug());
+            forum = forumDAO.getForumBySlug(request.getSlug());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(forum);
         } catch (Exceptions.NotFoundUser e) {
             MessageResponse resp = new MessageResponse("\"Can't find user with nickname: "+request.getUser());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(resp);
         }
-        Forum forum = forumDAO.getForumBySlug(request.getSlug());
+        //Forum forum = forumDAO.getForumBySlug(request.getSlug());
         return ResponseEntity.status(HttpStatus.CREATED).body(forum);
     }
 
@@ -64,6 +65,7 @@ public class ForumController {
         if (forum == null) {
             MessageResponse resp = new MessageResponse("Can't find forum");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(resp);
+//            return ResponseEntity.ok(null);
         }
         return ResponseEntity.ok(forum);
     }
@@ -91,7 +93,7 @@ public class ForumController {
                                               @RequestParam(required = false, value = "since") String since,
                                               @RequestParam(required = false, value = "desc") Boolean desc) {
         List<Thread> threads = threadDAO.getThreadsFromForum(forum_slug, limit, since, desc);
-        if (threads.size() == 0) {
+        if (threads.isEmpty()) {
             Forum forum;
             try {
                 forum = forumDAO.getForumBySlug(forum_slug);

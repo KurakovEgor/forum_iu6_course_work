@@ -4,10 +4,13 @@ import api.Exceptions;
 import api.models.Thread;
 import api.models.Vote;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import javax.xml.crypto.Data;
 
 import static api.databases.Mappers.*;
 import static api.databases.Mappers.VOTE_ROW_MAPPER;
@@ -17,7 +20,6 @@ import static api.databases.Mappers.VOTE_ROW_MAPPER;
  */
 
 @Service
-@Transactional
 public class VoteDAO {
 
     private JdbcTemplate jdbcTemplateObject;
@@ -33,32 +35,27 @@ public class VoteDAO {
 
     public Thread vote(Integer voice, String threadSlug, String nickname) {
 
-        String sql = "SELECT * FROM threads WHERE slug = ?::citext";
-        Thread thread;
+        String sql = "SELECT id FROM threads WHERE slug = ?::citext";
+        Integer threadId;
         try {
-            thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, threadSlug);
+            threadId = jdbcTemplateObject.queryForObject(sql, Integer.class, threadSlug);
         } catch (EmptyResultDataAccessException e) {
-            throw new Exceptions.NotFoundThread();
+            throw new DataIntegrityViolationException(null);
         }
-        return vote(voice, thread.getId(), nickname);
+        return vote(voice, threadId, nickname);
     }
+    //PGBUDGER
 
     public Thread vote(Integer voice, Integer threadId, String nickname) {
-        String sql = "SELECT * FROM votes WHERE thread_id = ? AND nickname = ?";
+        String sql = "SELECT voice FROM votes WHERE thread_id = ? AND nickname = ?";
 
         Thread thread;
 
         Integer oldVoice = null;
         try {
-            Vote vote = jdbcTemplateObject.queryForObject(sql, VOTE_ROW_MAPPER, threadId, nickname);
-            oldVoice = vote.getVoice();
+            oldVoice = jdbcTemplateObject.queryForObject(sql, Integer.class, threadId, nickname);
         } catch (EmptyResultDataAccessException e) {
-            if (!userDAO.isCreated(nickname)) {
-                throw new Exceptions.NotFoundUser();
-            }
-            if (!threadDAO.isCreated(threadId)) {
-                throw new Exceptions.NotFoundThread();
-            }
+
         }
         if (oldVoice == null) {
             sql = "INSERT INTO votes (voice, nickname, thread_id) VALUES (?, ?, ?) RETURNING *";
@@ -66,8 +63,11 @@ public class VoteDAO {
         } else {
             sql = "UPDATE votes SET voice = ? WHERE nickname = ? AND thread_id = ? RETURNING *";
         }
-        jdbcTemplateObject.queryForObject(sql, VOTE_ROW_MAPPER, voice, nickname, threadId);
-
+        try {
+            jdbcTemplateObject.queryForObject(sql, VOTE_ROW_MAPPER, voice, nickname, threadId);
+        } catch (DataIntegrityViolationException e) {
+            throw e;
+        }
         sql = "UPDATE threads SET votes = votes + (?) WHERE id = ? RETURNING *";
         Integer changeVoice = voice - oldVoice;
         try {

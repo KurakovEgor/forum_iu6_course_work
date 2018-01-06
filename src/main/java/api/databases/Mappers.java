@@ -45,6 +45,14 @@ public class Mappers {
                 forum,id,message,slug,title,votes);
     };
 
+    static final RowMapper<Thread> THREAD_FORUM_AND_ID_ROW_MAPPER = (res, num) -> {
+        String forum = res.getString("forum");
+        Integer id = Integer.parseInt(res.getString("id"));
+        return new Thread(null,
+                null,
+                forum,id,null,null,null,null);
+    };
+
     static final RowMapper<Post> POST_ROW_MAPPER = (res, num) -> {
         String author = res.getString("author");
         Timestamp created = res.getTimestamp("created");

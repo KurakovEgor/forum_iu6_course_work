@@ -4,37 +4,45 @@ import api.Exceptions;
 import api.models.Post;
 import api.models.PostWithInfo;
 import api.models.Thread;
+import api.models.User;
+import com.sun.corba.se.spi.ior.ObjectKey;
 import com.sun.org.apache.xpath.internal.operations.Bool;
 import com.zaxxer.hikari.HikariDataSource;
+import javafx.util.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapperResultSetExtractor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Array;
-import java.sql.Connection;
-import java.sql.SQLException;
+import java.sql.*;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Date;
 import java.util.List;
 
 import static api.databases.Mappers.*;
+import static java.lang.System.currentTimeMillis;
 
 /**
  * Created by egor on 15.10.17.
  */
 
 @Service
-@Transactional
 public class PostDAO {
     private JdbcTemplate jdbcTemplateObject;
     private Connection connection;
+    private static Integer numOfPosts;
+    private static Integer i = 0;
     public PostDAO(JdbcTemplate jdbcTemplateObject, HikariDataSource hikariDataSource) {
         this.jdbcTemplateObject = jdbcTemplateObject;
+        numOfPosts = numOfPosts();
         try {
             connection = hikariDataSource.getConnection();
-        } catch (SQLException ignore) {};
+        } catch (SQLException ignore) { };
     }
 
     @Autowired
@@ -47,21 +55,28 @@ public class PostDAO {
     private ForumDAO forumDAO;
 
     public List<Post> createPosts(List<Post> posts) {
-        List<Post> readyPosts = new ArrayList<Post>();
-        String sql = null;
+        i++;
+        List<Post> readyPosts = new ArrayList<>();
+        String sql = "";
+        Set<Pair<String, Integer>> forumsAndUsers = new HashSet<>();
         try {
             for( Post post : posts) {
                 if (post.getParent() == null) {
                     post.setParent(0);
                 }
-                if(!userDAO.isCreated(post.getAuthor())) {
+                User user = userDAO.getUserByNickName(post.getAuthor());
+                if (user == null) {
                     throw new Exceptions.NotFoundUser();
+                } else {
+                    post.setAuthorId(user.getId());
                 }
+            }
+            for( Post post : posts) {
                 if (post.getThread() == null) {
-                    sql = "SELECT * FROM threads WHERE slug = ?::citext";
+                    sql = "SELECT id, forum FROM threads WHERE slug = ?::citext";
                     Thread thread;
                     try {
-                        thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, post.getThreadSlug());
+                        thread = jdbcTemplateObject.queryForObject(sql, THREAD_FORUM_AND_ID_ROW_MAPPER, post.getThreadSlug());
                     } catch (EmptyResultDataAccessException e) {
                         throw new Exceptions.NotFoundThread();
                     }
@@ -71,55 +86,88 @@ public class PostDAO {
                     if (post.getForum() == null) {
                         Integer threadId = post.getThread();
                         try {
-                            sql = "SELECT * FROM threads WHERE id = ?";
-                            Thread thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, threadId);
-                            post.setForum(thread.getForum());
+                            sql = "SELECT forum FROM threads WHERE id = ?";
+                            String forumSlug = jdbcTemplateObject.queryForObject(sql, String.class, threadId);
+                            post.setForum(forumSlug);
                         } catch (EmptyResultDataAccessException e) {
                             throw new Exceptions.NotFoundThread();
                         }
                     }
+                    if (!threadDAO.isCreated(post.getThread())) {
+                        throw new Exceptions.NotFoundThread();
+                    }
                 }
-                if(!threadDAO.isCreated(post.getThread())) {
-                    throw new Exceptions.NotFoundThread();
-                }
-                List<Integer> path;
-                if(!post.getParent().equals(0)) {
-//                    sql = "SELECT * FROM posts WHERE id = ?";
-                    Post parent = null;
-                    try{
+            }
+            for(Post post : posts) {
+                if (!post.getParent().equals(0)) {
+                    Post parent;
+                    try {
                         parent = getPost(post.getParent());
-                        //parent = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getParent());
                     } catch (Exceptions.NotFoundPost e) {
                         throw new Exceptions.InvalidParrent();
                     }
-                    path = parent.getChildren();
-                    path.add(parent.getId());
                     if (!parent.getThread().equals(post.getThread())) {
                         throw new Exceptions.InvalidParrent();
                     }
+                    post.setChildren(parent.getChildren());
                 } else {
-                    path = new ArrayList<>();
-                    path.add(0);
-                }
-//                if (post.getParent() != 0 && post.getParent() != null) {
-//                    sql = "UPDATE posts SET children = array_append(children, ?) WHERE id = ? RETURNING *";
-//                    jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getId(), post.getParent());
-//                }
-
-                if (post.getCreated() == null) {
-                    sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?) RETURNING *";
-                    Post readyPost = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getAuthor(),
-                            post.getForum(), post.getIsEdited(),
-                            post.getMessage(), post.getParent(), post.getThread(), createSqlArray(path));
-                    readyPosts.add(readyPost);
-                } else {
-                    sql = "INSERT INTO posts (author, created, forum, is_editted, message, parent, thread_id, children) VALUES (?, ?::TIMESTAMPTZ , ?, ?::BOOLEAN, ?, ?, ?, ?) RETURNING *";
-                    Post readyPost = jdbcTemplateObject.queryForObject(sql, POST_ROW_MAPPER, post.getAuthor(),
-                            post.getCreated(), post.getForum(), post.getIsEdited(),
-                            post.getMessage(), post.getParent(), post.getThread(), createSqlArray(path));
-                    readyPosts.add(readyPost);
+                    post.setChildren(null);
                 }
             }
+            String time;
+//
+            Date date = new Date(System.currentTimeMillis());
+
+            SimpleDateFormat sdf;
+            sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+            sdf.setTimeZone(TimeZone.getTimeZone("MSK"));
+
+            time = sdf.format(date);
+//
+            sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, created, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?::TIMESTAMPTZ, ?) RETURNING *";
+            try (PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                for (Post post : posts) {
+                    forumsAndUsers.add(new Pair<>(post.getForum(),post.getAuthorId()));
+                    ps.setString(1, post.getAuthor());
+                    ps.setString(2, post.getForum());
+                    ps.setBoolean(3, post.getIsEdited());
+                    ps.setString(4, post.getMessage());
+                    ps.setInt(5, post.getParent());
+                    ps.setInt(6, post.getThread());
+                    if (post.getCreated() == null) {
+                        post.setCreated(time);
+                    }
+                    ps.setString(7, post.getCreated());
+                    ps.setArray(8, createSqlArray(post.getChildren()));
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+
+
+
+                ResultSet rs = ps.getGeneratedKeys();
+                for(Post post : posts) {
+                    if (rs.next()) {
+                        post.setId((int)rs.getLong(1));
+                    }
+                    readyPosts.add(post);
+                }
+
+            } catch (SQLException ignore) {
+
+            }
+            sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?)";
+            try (PreparedStatement ps = connection.prepareStatement(sql, Statement.NO_GENERATED_KEYS)) {
+                for (Pair pair : forumsAndUsers) {
+                    ps.setObject(1, pair.getKey());
+                    ps.setObject(2, pair.getValue());
+                    ps.addBatch();
+                }
+                ps.executeBatch();
+            } catch (SQLException ignore) {
+                System.out.println("Oh");
+            }
+            numOfPosts += readyPosts.size();
             return readyPosts;
         } catch (DuplicateKeyException e) {
             throw e;
@@ -284,11 +332,12 @@ public class PostDAO {
 
     }
     private List<Post> getPostFromThreadSortedByTree(Thread thread, Integer limit, Integer since, Boolean desc) {
-        List<Post> posts = createTree(getRootPostsFromThread(thread));
-        List<Post> resultPosts = new ArrayList<>();
+        String sql = "SELECT * FROM posts WHERE thread_id = ? ORDER BY children";
         if (desc != null && desc == true) {
-            Collections.reverse(posts);
+            sql += " DESC";
         }
+        List<Post> posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
+        List<Post> resultPosts = new ArrayList<>();
         Boolean achieveSince = (since == null) ? true : false;
         for (Post post : posts) {
             if (achieveSince) {
@@ -307,7 +356,8 @@ public class PostDAO {
     private List<Post> getPostFromThreadSortedByParentTree(Thread thread, Integer limit, Integer since, Boolean desc) {
         List<Post> resultPosts = new ArrayList<>();
         if (desc == null || desc == false) {
-            List<Post> posts = createTree(getRootPostsFromThread(thread));
+            String sql = "SELECT * FROM posts WHERE thread_id = ? ORDER BY children";
+            List<Post> posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
             Boolean achieveSince = (since == null) ? true : false;
             Boolean achieveSinceRoot = (since == null) ? true : false;
             Integer numOfRoot = 0;
@@ -334,8 +384,8 @@ public class PostDAO {
                 }
             }
         } else {
-            List<Post> posts = createTree(getRootPostsFromThread(thread));
-            Collections.reverse(posts);
+            String sql = "SELECT * FROM posts WHERE thread_id = ? ORDER BY children DESC";
+            List<Post> posts = jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
             List<Post> rootPostWithChildren = null;
             Integer roots = 0;
             Boolean flag = true;
@@ -375,40 +425,30 @@ public class PostDAO {
         return resultPosts;
 
     }
-    private List<Post> getChildrenPosts(Post post) {
-        String sql = "SELECT * FROM posts WHERE parent = ? ORDER BY created, id";
-        return jdbcTemplateObject.query(sql, POST_ROW_MAPPER, post.getId());
-    }
-    private List<Post> createTree(Post post) {
-        List<Post> posts = new ArrayList<>();
-        posts.add(post);
-        for( Post childPost : getChildrenPosts(post)) {
-            posts.addAll(createTree(childPost));
-        }
-        return posts;
-    }
-    private List<Post> createTree(List<Post> posts) {
-        List<Post> sortedPosts = new ArrayList<>();
-        for(Post post : posts) {
-            sortedPosts.addAll(createTree(post));
-        }
-        return sortedPosts;
-    }
-    private List<Post> getRootPostsFromThread(Thread thread) {
-        String sql = "SELECT * FROM posts WHERE thread_id = ? AND parent = 0 ORDER BY id";
-        return jdbcTemplateObject.query(sql, POST_ROW_MAPPER, thread.getId());
-    }
+
     private Array createSqlArray(List<Integer> list) {
         Array intArray = null;
+        if (list == null) {
+            list = new ArrayList<>();
+        }
         try {
             intArray = connection.createArrayOf("int4", list.toArray());
         } catch (SQLException ignore) {
+
         }
         return intArray;
     }
     public Integer numOfPosts() {
         String sql = "SELECT COUNT(*) FROM posts";
         return jdbcTemplateObject.queryForObject(sql, Integer.class);
+    }
+
+    public static Integer getNumOfPosts() {
+        return numOfPosts;
+    }
+
+    public static void setNumOfPosts(Integer numOfPosts) {
+        PostDAO.numOfPosts = numOfPosts;
     }
 
     //TODO: Index on parents

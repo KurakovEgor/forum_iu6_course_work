@@ -29,13 +29,14 @@ public class UserController {
 
     @PostMapping(path = "{nickname}/create", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<?> createUser(@PathVariable String nickname, @RequestBody UserRequest request) {
+        User user;
         try {
-            userDAO.createUser(request.getFullname(), request.getEmail(), nickname, request.getAbout());
+            user = userDAO.createUser(request.getFullname(), request.getEmail(), nickname, request.getAbout());
         } catch (DuplicateKeyException e) {
             List<User> users = userDAO.getUsersWithNickNameOrEmail(nickname, request.getEmail());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(users);
         }
-        User user = userDAO.getUserByNickName(nickname);
+        //user = userDAO.getUserByNickName(nickname);
         return ResponseEntity.status(HttpStatus.CREATED).body(user);
     }
 

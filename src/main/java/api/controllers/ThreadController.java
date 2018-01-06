@@ -12,6 +12,7 @@ import api.utils.PostRequest;
 import api.utils.ThreadRequest;
 import api.utils.VoteRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -164,10 +165,8 @@ public class ThreadController {
             } catch (NumberFormatException e) {
                 thread = voteDAO.vote(request.getVoice(), thread_slug_or_id, request.getNickname());
             }
-        } catch (Exceptions.NotFoundThread e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Can't find thread by slug: "+thread_slug_or_id));
-        } catch (Exceptions.NotFoundUser e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Can't find post author by nickname"));
+        } catch (DataIntegrityViolationException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Can't find thread or user: "));
         }
         return ResponseEntity.ok(thread);
     }

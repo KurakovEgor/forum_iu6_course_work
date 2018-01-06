@@ -1,8 +1,10 @@
 package api.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.jetbrains.annotations.Nullable;
 
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Null;
 import java.util.List;
 
 /**
@@ -12,6 +14,9 @@ public class Post {
 
     @NotNull
     private String author;
+
+    @JsonIgnore
+    private @Nullable Integer authorId;
 
     private String created;
 
@@ -169,5 +174,13 @@ public class Post {
 
     public void setThread(Integer thread) {
         this.thread = thread;
+    }
+
+    public Integer getAuthorId() {
+        return authorId;
+    }
+
+    public void setAuthorId(Integer authorId) {
+        this.authorId = authorId;
     }
 }

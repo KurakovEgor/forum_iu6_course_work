@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.attribute.UserPrincipalNotFoundException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -23,36 +24,30 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
  */
 
 @Service
-@Transactional
 public class ForumDAO {
     private JdbcTemplate jdbcTemplateObject;
-    private Connection connection;
+    private static Integer numOfForums;
 
     public ForumDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
-        try {
-            connection = jdbcTemplateObject.getDataSource().getConnection();
-        } catch (SQLException ex) {
-
-        }
+        numOfForums = numOfForums();
     }
 
-    public void createForum(String slug, String title, String user_nickname) {
-        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
-        User user = null;
+    public Forum createForum(String slug, String title, String user_nickname) {
+        //TODO: Index user_nickname
+        String sql = "SELECT nickname FROM users WHERE nickname = ?::citext";
         try {
-            user = jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, user_nickname);
+            user_nickname = jdbcTemplateObject.queryForObject(sql, String.class, user_nickname);
         } catch (EmptyResultDataAccessException e) {
             throw new Exceptions.NotFoundUser();
         }
-        sql = "INSERT INTO forums (slug, title, user_nickname) VALUES (?, ?, ?)";
+        sql = "INSERT INTO forums (slug, title, user_nickname) VALUES (?, ?, ?) RETURNING *";
         try {
-            jdbcTemplateObject.queryForObject(sql, FORUM_ROW_MAPPER, slug, title, user.getNickname());
+            Forum forum =  jdbcTemplateObject.queryForObject(sql, FORUM_ROW_MAPPER, slug, title, user_nickname);
+            numOfForums++;
+            return forum;
         } catch (DuplicateKeyException e) {
             throw e;
-        } catch (DataIntegrityViolationException e) {
-
-
         }
     }
 
@@ -79,4 +74,11 @@ public class ForumDAO {
         return forum;
     }
 
+    public static Integer getNumOfForums() {
+        return numOfForums;
+    }
+
+    public static void setNumOfForums(Integer numOfForums) {
+        ForumDAO.numOfForums = numOfForums;
+    }
 }

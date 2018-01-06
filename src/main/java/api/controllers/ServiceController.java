@@ -32,9 +32,9 @@ public class ServiceController {
 
     @GetMapping(path = "/status", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<?> returnStatus () {
-        Status status = new Status(postDAO.numOfPosts(),
-                userDAO.numOfUsers(),threadDAO.numOfThreads(),
-                forumDAO.numOfForums());
+        Status status = new Status(PostDAO.getNumOfPosts(),
+                UserDAO.getNumOfUsers(), ThreadDAO.getNumOfThreads(),
+                ForumDAO.getNumOfForums());
         return ResponseEntity.ok(status);
     }
 

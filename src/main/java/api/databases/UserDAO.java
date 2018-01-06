@@ -5,10 +5,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static api.databases.Mappers.USER_ROW_MAPPER;
 
@@ -17,26 +21,29 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
  */
 
 @Service
-@Transactional
 public class UserDAO {
 
     private JdbcTemplate jdbcTemplateObject;
+    private static Integer numOfUsers;
 
     public UserDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
+        numOfUsers = numOfUsers();
     }
 
 
 
-    public void createUser(String fullname, String email, String nickname, String about) {
-        final String sql = "INSERT INTO users (about, email, fullname, nickname) VALUES (?, ?, ?, ?)";
+    public User createUser(String fullname, String email, String nickname, String about) {
+        final String sql = "INSERT INTO users (about, email, fullname, nickname) VALUES (?, ?, ?, ?) RETURNING id, nickname, fullname, email, about";
+        User user;
         try {
             String str = new String();
-            jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, about, email, fullname, nickname);
+
+            user =  jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, about, email, fullname, nickname);
+            numOfUsers++;
+            return user;
         } catch (DuplicateKeyException e) {
             throw e;
-        } catch (DataIntegrityViolationException e) {
-
         }
     }
 
@@ -126,11 +133,10 @@ public class UserDAO {
     }
 
     public Boolean isCreated(String nickname){
-        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
-        User user = null;
+        String sql = "SELECT nickname FROM users WHERE nickname = ?::citext";
         try {
-            user = jdbcTemplateObject.queryForObject(sql,
-                    USER_ROW_MAPPER, nickname);
+            jdbcTemplateObject.queryForObject(sql,
+                    String.class, nickname);
         } catch (EmptyResultDataAccessException e) {
             return false;
         }
@@ -158,32 +164,12 @@ public class UserDAO {
     }
 
     public List<User> getUsersFromForum(String forum_slug, Integer limit, String since, Boolean desc) {
-        //TODO: Денормализовать всё что здесь есть и джойнить по id
-        String sql = "SELECT DISTINCT * FROM (" +
-                "  SELECT\n" +
-                "    u1.id       AS id," +
-                "    u1.nickname AS nickname," +
-                "    u1.email    AS email," +
-                "    u1.fullname AS fullname," +
-                "    u1.about    AS about" +
-                "  FROM posts AS p" +
-                "    JOIN users AS u1 ON (p.author = u1.nickname)" +
-                "  WHERE forum = ?::citext" +
-                "  UNION SELECT" +
-                "          u2.id       AS id," +
-                "          u2.nickname AS nickname," +
-                "          u2.email    AS email," +
-                "          u2.fullname AS fullname," +
-                "          u2.about    AS about" +
-                "        FROM threads AS t" +
-                "          JOIN users AS u2 ON (t.author = u2.nickname)" +
-                "        WHERE forum = ?::citext " +
-                ") users ";
+        String sql = "SELECT u.id, fullname, nickname, email, about FROM forums_users JOIN users u ON(user_id = u.id) WHERE forum_slug = ?::citext ";
         if (since != null) {
             if (desc != null && desc == true) {
-                sql += "WHERE nickname < ?::citext ";
+                sql += "AND nickname < ?::citext ";
             } else {
-                sql += "WHERE nickname > ?::citext ";
+                sql += "AND nickname > ?::citext ";
             }
         }
         sql += "ORDER BY nickname ";
@@ -196,23 +182,30 @@ public class UserDAO {
         List<User> users;
         if(since == null) {
             if (limit == null) {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, forum_slug);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug);
             } else {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, forum_slug, limit);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, limit);
             }
         } else {
             if (limit == null) {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, forum_slug, since);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, since);
             } else {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, forum_slug, since, limit);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, since, limit);
             }
         }
         return users;
-
     }
 
     public Integer numOfUsers() {
         String sql = "SELECT COUNT(*) FROM users";
         return jdbcTemplateObject.queryForObject(sql, Integer.class);
+    }
+
+    public static Integer getNumOfUsers() {
+        return numOfUsers;
+    }
+
+    public static void setNumOfUsers(Integer numOfUsers) {
+        UserDAO.numOfUsers = numOfUsers;
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.SQLException;
 import java.util.List;
 
 import static api.databases.Mappers.FORUM_ROW_MAPPER;
@@ -21,38 +22,44 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
  */
 
 @Service
-@Transactional
 public class ThreadDAO {
     private JdbcTemplate jdbcTemplateObject;
+    private static Integer numOfThreads;
     public ThreadDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
+        numOfThreads = numOfThreads();
     }
     public Thread createThread(String slug, String author, String created, String forum, String message, String title) {
 
-        String sql = "SELECT * FROM users WHERE nickname = ?::citext";
+        String sql = "SELECT slug FROM forums WHERE slug = ?::citext";
         try {
-            jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, author);
-        } catch (EmptyResultDataAccessException e) {
-            throw new Exceptions.NotFoundUser();
-        }
-
-        sql = "SELECT * FROM forums WHERE slug = ?::citext";
-        try {
-            Forum gotForum = jdbcTemplateObject.queryForObject(sql, FORUM_ROW_MAPPER, forum);
-            forum = gotForum.getSlug();
+            forum = jdbcTemplateObject.queryForObject(sql, String.class, forum);
         } catch (EmptyResultDataAccessException e) {
             throw new Exceptions.NotFoundForum();
         }
 
         sql = "INSERT INTO threads (slug, author, created, forum, message, title) VALUES (?, ?, ?::TIMESTAMPTZ , ?, ?, ?) RETURNING *";
+        Thread thread;
         try {
-            Thread thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, slug, author, created, forum, message, title);
-            return thread;
+            thread = jdbcTemplateObject.queryForObject(sql, THREAD_ROW_MAPPER, slug, author, created, forum, message, title);
         } catch (DuplicateKeyException e) {
             throw e;
-        } catch (DataIntegrityViolationException e) {
-            throw e;
         }
+        sql = "SELECT id FROM users WHERE nickname = ?::citext";
+        Integer userId;
+        try {
+            userId = jdbcTemplateObject.queryForObject(sql, Integer.class, thread.getAuthor());
+        } catch (EmptyResultDataAccessException e) {
+            throw new Exceptions.NotFoundUser();
+        }
+        sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?)";
+        try {
+            jdbcTemplateObject.update(sql, thread.getForum(), userId);
+        } catch (DuplicateKeyException ignore) {
+
+        }
+        numOfThreads++;
+        return thread;
     }
     public Thread getThreadBySlug(String slug) {
         String sql = "SELECT * FROM threads WHERE slug = ?::citext";
@@ -77,7 +84,7 @@ public class ThreadDAO {
         return thread;
     }
     public List<Thread> getThreadsFromForum(String forum_slug, Integer limit, String since, Boolean desc) {
-        String sql = null;
+        String sql;
         if (since == null){
             sql = "SELECT * FROM threads WHERE forum = ?::citext ORDER BY created ";
             if (desc != null && desc == true) {
@@ -302,10 +309,10 @@ public class ThreadDAO {
 //        }
     }
     public Boolean isCreated(String threadSlug) {
-        String sql = "SELECT * FROM threads WHERE slug = ?::citext";
+        String sql = "SELECT slug FROM threads WHERE slug = ?::citext";
         try {
              jdbcTemplateObject.queryForObject(sql,
-                    THREAD_ROW_MAPPER, threadSlug);
+                    String.class, threadSlug);
         } catch (EmptyResultDataAccessException e) {
             return false;
         }
@@ -314,5 +321,13 @@ public class ThreadDAO {
     public Integer numOfThreads() {
         String sql = "SELECT COUNT(*) FROM threads";
         return jdbcTemplateObject.queryForObject(sql, Integer.class);
+    }
+
+    public static Integer getNumOfThreads() {
+        return numOfThreads;
+    }
+
+    public static void setNumOfThreads(Integer numOfThreads) {
+        ThreadDAO.numOfThreads = numOfThreads;
     }
 }
