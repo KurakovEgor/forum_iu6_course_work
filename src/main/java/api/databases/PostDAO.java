@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapperResultSetExtractor;
 import org.springframework.stereotype.Service;
@@ -39,7 +40,11 @@ public class PostDAO {
     private static Integer i = 0;
     public PostDAO(JdbcTemplate jdbcTemplateObject, HikariDataSource hikariDataSource) {
         this.jdbcTemplateObject = jdbcTemplateObject;
-        numOfPosts = numOfPosts();
+        try {
+            numOfPosts = numOfPosts();
+        } catch (BadSqlGrammarException ex) {
+            numOfPosts = 0;
+        }
         try {
             connection = hikariDataSource.getConnection();
         } catch (SQLException ignore) { };

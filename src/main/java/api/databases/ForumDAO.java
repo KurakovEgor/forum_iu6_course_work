@@ -6,6 +6,7 @@ import api.models.User;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,11 @@ public class ForumDAO {
 
     public ForumDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
-        numOfForums = numOfForums();
+        try {
+            numOfForums = numOfForums();
+        } catch (BadSqlGrammarException ex) {
+            numOfForums = 0;
+        }
     }
 
     public Forum createForum(String slug, String title, String user_nickname) {

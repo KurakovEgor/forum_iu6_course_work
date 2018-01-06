@@ -4,6 +4,7 @@ import api.models.User;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,11 @@ public class UserDAO {
 
     public UserDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
-        numOfUsers = numOfUsers();
+        try {
+            numOfUsers = numOfUsers();
+        } catch (BadSqlGrammarException ex) {
+            numOfUsers = 0;
+        }
     }
 
 

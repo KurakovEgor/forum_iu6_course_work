@@ -6,6 +6,7 @@ import api.models.Thread;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +28,11 @@ public class ThreadDAO {
     private static Integer numOfThreads;
     public ThreadDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
-        numOfThreads = numOfThreads();
+        try {
+            numOfThreads = numOfThreads();
+        } catch (BadSqlGrammarException ex) {
+            numOfThreads = 0;
+        }
     }
     public Thread createThread(String slug, String author, String created, String forum, String message, String title) {
 
