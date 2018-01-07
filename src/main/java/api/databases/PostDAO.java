@@ -168,9 +168,13 @@ public class PostDAO {
                     ps.setObject(2, pair.getValue());
                     ps.addBatch();
                 }
-                ps.executeBatch();
+                try {
+                    ps.executeBatch();
+                } catch (DuplicateKeyException ignore) {
+
+                }
             } catch (SQLException ignore) {
-                System.out.println("Oh");
+
             }
             numOfPosts += readyPosts.size();
             return readyPosts;
