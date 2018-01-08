@@ -90,10 +90,6 @@ public class PostController {
         } catch (Exceptions.NotModified e) {
             post = postDAO.getPost(post_id);
         }
-//        if (post == null) {
-//            MessageResponse resp = new MessageResponse("No So Post");
-//            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(resp);
-//        }
         return ResponseEntity.ok(post);
     }
 }

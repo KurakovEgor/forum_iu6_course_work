@@ -44,7 +44,6 @@ public class VoteDAO {
         }
         return vote(voice, threadId, nickname);
     }
-    //PGBUDGER
 
     public Thread vote(Integer voice, Integer threadId, String nickname) {
         String sql = "SELECT voice FROM votes WHERE thread_id = ? AND nickname = ?";

@@ -137,7 +137,7 @@ public class PostDAO {
 
             }
             numOfPosts += readyPosts.size();
-            if (numOfPosts > 999999) {
+            if (numOfPosts > 1499999) {
                 jdbcTemplateObject.execute("VACUUM ANALYZE");
             }
             if (!readyPosts.isEmpty()) {
