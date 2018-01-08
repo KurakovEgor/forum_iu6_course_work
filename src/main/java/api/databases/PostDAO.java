@@ -69,7 +69,9 @@ public class PostDAO {
                 if (post.getParent() == null) {
                     post.setParent(0);
                 }
+
                 User user = userDAO.getUserByNickName(post.getAuthor());
+
                 if (user == null) {
                     throw new Exceptions.NotFoundUser();
                 } else {
@@ -120,19 +122,15 @@ public class PostDAO {
                 }
             }
             String time;
-//
             Date date = new Date(System.currentTimeMillis());
-
             SimpleDateFormat sdf;
             sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
             sdf.setTimeZone(TimeZone.getTimeZone("MSK"));
-
             time = sdf.format(date);
-//
-            sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, created, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?::TIMESTAMPTZ, ?) RETURNING *";
+            sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, created, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?::TIMESTAMPTZ, ?)";
             try (PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 for (Post post : posts) {
-                    forumsAndUsers.add(new Pair<>(post.getForum(),post.getAuthorId()));
+                    forumsAndUsers.add(new Pair<>(post.getForum(), post.getAuthorId()));
                     ps.setString(1, post.getAuthor());
                     ps.setString(2, post.getForum());
                     ps.setBoolean(3, post.getIsEdited());
@@ -161,18 +159,14 @@ public class PostDAO {
             } catch (SQLException ignore) {
 
             }
-            sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?)";
+            sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING";
             try (PreparedStatement ps = connection.prepareStatement(sql, Statement.NO_GENERATED_KEYS)) {
                 for (Pair pair : forumsAndUsers) {
                     ps.setObject(1, pair.getKey());
                     ps.setObject(2, pair.getValue());
                     ps.addBatch();
                 }
-                try {
-                    ps.executeBatch();
-                } catch (DuplicateKeyException ignore) {
-
-                }
+                ps.executeBatch();
             } catch (SQLException ignore) {
 
             }
