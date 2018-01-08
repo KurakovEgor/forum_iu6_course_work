@@ -52,9 +52,6 @@ public class PostDAO {
     @Autowired
     private ForumDAO forumDAO;
 
-    @Autowired
-    private ServiceDAO serviceDAO;
-
     public List<Post> createPosts(List<Post> posts) {
         i++;
         List<Post> readyPosts = new ArrayList<>();
@@ -141,7 +138,7 @@ public class PostDAO {
             }
             numOfPosts += readyPosts.size();
             if (numOfPosts > 999999) {
-                serviceDAO.vacuumAnalyze();
+                jdbcTemplateObject.execute("VACUUM ANALYZE");
             }
             if (!readyPosts.isEmpty()) {
                 ForumDAO.addPostsNum(readyPosts.get(0).getForum(), readyPosts.size());

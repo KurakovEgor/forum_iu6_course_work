@@ -35,11 +35,4 @@ public class ServiceDAO {
         ThreadDAO.setNumOfThreads(0);
         UserDAO.setNumOfUsers(0);
     }
-
-    public void vacuumAnalyze() {
-        String sql = "VACUUM ANALYZE";
-        jdbcTemplateObject.execute(sql);
-    }
-
-
 }
