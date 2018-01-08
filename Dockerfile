@@ -13,7 +13,7 @@ WORKDIR $PARK_DB_ROOT
 RUN mkdir -p ./postgres && chown -R postgres:postgres ./postgres
 USER postgres
 
-#JDBC_DATABASE_URL=jdbc:postgresql://localhost:5432/park_db;=;=;PGDATABASE=park_db
+ENV JDBC_DATABASE_URL=jdbc:postgresql://localhost:5432/park_db
 
 RUN service postgresql start &&\
     bash -l -c "echo \$(psql -tc 'SHOW config_file') > ./postgres/pgconfig.env" &&\

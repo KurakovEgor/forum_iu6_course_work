@@ -31,7 +31,7 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
 public class ForumDAO {
     private JdbcTemplate jdbcTemplateObject;
     private static Integer numOfForums;
-    private static Map<String,Integer> forumsAndPostsNum;
+    private static Map<String,Integer> forumsAndPostsNum = new HashMap<>();
 
     public ForumDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
@@ -48,7 +48,6 @@ public class ForumDAO {
     }
 
     private void fillForumsAndPostsMap() {
-        forumsAndPostsNum = new HashMap();
         List<String> forums = getForumSlugs();
         for (String forum : forums) {
             String sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
