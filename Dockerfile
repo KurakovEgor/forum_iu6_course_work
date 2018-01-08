@@ -37,4 +37,4 @@ RUN mvn package
 
 EXPOSE 5000
 
-CMD service postgresql start && java -jar $PARK_DB_ROOT/target/DB-1.1-SNAPSHOT.jar
+CMD service postgresql start && java -Xmx384M -Xms384M -jar $PARK_DB_ROOT/target/DB-1.1-SNAPSHOT.jar

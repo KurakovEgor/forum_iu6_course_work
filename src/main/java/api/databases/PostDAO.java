@@ -5,19 +5,13 @@ import api.models.Post;
 import api.models.PostWithInfo;
 import api.models.Thread;
 import api.models.User;
-import com.sun.corba.se.spi.ior.ObjectKey;
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import com.zaxxer.hikari.HikariDataSource;
-import javafx.util.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapperResultSetExtractor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.*;
 import java.text.SimpleDateFormat;
@@ -26,7 +20,6 @@ import java.util.Date;
 import java.util.List;
 
 import static api.databases.Mappers.*;
-import static java.lang.System.currentTimeMillis;
 
 /**
  * Created by egor on 15.10.17.
@@ -63,7 +56,7 @@ public class PostDAO {
         i++;
         List<Post> readyPosts = new ArrayList<>();
         String sql = "";
-        Set<Pair<String, Integer>> forumsAndUsers = new HashSet<>();
+        Set<Integer> users = new HashSet<>();
         try {
             for( Post post : posts) {
                 if (post.getParent() == null) {
@@ -76,33 +69,6 @@ public class PostDAO {
                     throw new Exceptions.NotFoundUser();
                 } else {
                     post.setAuthorId(user.getId());
-                }
-            }
-            for( Post post : posts) {
-                if (post.getThread() == null) {
-                    sql = "SELECT id, forum FROM threads WHERE slug = ?::citext";
-                    Thread thread;
-                    try {
-                        thread = jdbcTemplateObject.queryForObject(sql, THREAD_FORUM_AND_ID_ROW_MAPPER, post.getThreadSlug());
-                    } catch (EmptyResultDataAccessException e) {
-                        throw new Exceptions.NotFoundThread();
-                    }
-                    post.setThread(thread.getId());
-                    post.setForum(thread.getForum());
-                } else {
-                    if (post.getForum() == null) {
-                        Integer threadId = post.getThread();
-                        try {
-                            sql = "SELECT forum FROM threads WHERE id = ?";
-                            String forumSlug = jdbcTemplateObject.queryForObject(sql, String.class, threadId);
-                            post.setForum(forumSlug);
-                        } catch (EmptyResultDataAccessException e) {
-                            throw new Exceptions.NotFoundThread();
-                        }
-                    }
-                    if (!threadDAO.isCreated(post.getThread())) {
-                        throw new Exceptions.NotFoundThread();
-                    }
                 }
             }
             for(Post post : posts) {
@@ -130,7 +96,7 @@ public class PostDAO {
             sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, created, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?::TIMESTAMPTZ, ?)";
             try (PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 for (Post post : posts) {
-                    forumsAndUsers.add(new Pair<>(post.getForum(), post.getAuthorId()));
+                    users.add(post.getAuthorId());
                     ps.setString(1, post.getAuthor());
                     ps.setString(2, post.getForum());
                     ps.setBoolean(3, post.getIsEdited());
@@ -161,9 +127,9 @@ public class PostDAO {
             }
             sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING";
             try (PreparedStatement ps = connection.prepareStatement(sql, Statement.NO_GENERATED_KEYS)) {
-                for (Pair pair : forumsAndUsers) {
-                    ps.setObject(1, pair.getKey());
-                    ps.setObject(2, pair.getValue());
+                for (Integer user : users) {
+                    ps.setObject(1, readyPosts.get(0).getForum());
+                    ps.setObject(2, user);
                     ps.addBatch();
                 }
                 ps.executeBatch();
@@ -171,6 +137,9 @@ public class PostDAO {
 
             }
             numOfPosts += readyPosts.size();
+            if (!readyPosts.isEmpty()) {
+                ForumDAO.addPostsNum(readyPosts.get(0).getForum(), readyPosts.size());
+            }
             return readyPosts;
         } catch (DuplicateKeyException e) {
             throw e;

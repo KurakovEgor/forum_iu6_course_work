@@ -43,7 +43,6 @@ public class UserDAO {
         User user;
         try {
             String str = new String();
-
             user =  jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, about, email, fullname, nickname);
             numOfUsers++;
             return user;

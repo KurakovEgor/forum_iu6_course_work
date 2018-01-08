@@ -13,7 +13,6 @@ import api.utils.ThreadRequest;
 import api.utils.VoteRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -46,36 +45,34 @@ public class ThreadController {
     @PostMapping(path = "/{thread_slug_or_id}/create", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<?> createPosts(@PathVariable String thread_slug_or_id, @RequestBody List<PostRequest> request) {
         List<Post> posts = new ArrayList<Post>();
+        Thread thread;
+        try {
+            try {
+                Integer threadId = Integer.parseInt(thread_slug_or_id);
+                thread = threadDAO.getThreadById(threadId);
+            } catch (NumberFormatException e) {
+                thread = threadDAO.getThreadBySlug(thread_slug_or_id);
+            }
+        } catch (Exceptions.NotFoundThread e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new MessageResponse("Can't find thread with slug" + thread_slug_or_id));
+        }
+
         for(PostRequest postRequest : request ) {
             Post post;
             try {
-                Integer thread = Integer.parseInt(thread_slug_or_id);
                 post = new Post(postRequest.getAuthor(), postRequest.getCreated(),
                         postRequest.getForum(), false, postRequest.getMessage(),
-                        postRequest.getParent(), thread);
+                        postRequest.getParent(), thread.getId());
             } catch (NumberFormatException e) {
                 post = new Post(postRequest.getAuthor(), postRequest.getCreated(),
                         postRequest.getForum(), false, postRequest.getMessage(),
-                        postRequest.getParent(), thread_slug_or_id);
+                        postRequest.getParent(), thread.getId());
             }
+            post.setForum(thread.getForum());
             posts.add(post);
         }
         try {
-            if(posts.size()==0) {
-                try {
-                    Integer thread = Integer.parseInt(thread_slug_or_id);
-                    if(!threadDAO.isCreated(thread)) {
-                        throw new Exceptions.NotFoundThread();
-                    }
-                } catch (NumberFormatException e) {
-                    if(!threadDAO.isCreated(thread_slug_or_id)) {
-                        throw new Exceptions.NotFoundThread();
-                    }
-                }
-            }
             posts = postDAO.createPosts(posts);
-        } catch (DuplicateKeyException e) {
-
         } catch (Exceptions.InvalidParrent e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(new MessageResponse("Parent post was created in another thread"));
         } catch (Exceptions.NotFoundUser e) {

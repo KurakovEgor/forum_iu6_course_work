@@ -16,6 +16,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static api.databases.Mappers.FORUM_ROW_MAPPER;
 import static api.databases.Mappers.USER_ROW_MAPPER;
@@ -28,13 +31,29 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
 public class ForumDAO {
     private JdbcTemplate jdbcTemplateObject;
     private static Integer numOfForums;
+    private static Map<String,Integer> forumsAndPostsNum;
 
     public ForumDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
         try {
             numOfForums = numOfForums();
+            fillForumsAndPostsMap();
         } catch (BadSqlGrammarException ex) {
             numOfForums = 0;
+        }
+    }
+    private List<String> getForumSlugs() {
+        String sql = "SELECT slug FROM forums";
+        return jdbcTemplateObject.queryForList(sql, String.class);
+    }
+
+    private void fillForumsAndPostsMap() {
+        forumsAndPostsNum = new HashMap();
+        List<String> forums = getForumSlugs();
+        for (String forum : forums) {
+            String sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
+            Integer posts = jdbcTemplateObject.queryForObject(sql, Integer.class, forum);
+            forumsAndPostsNum.put(forum,posts);
         }
     }
 
@@ -50,6 +69,7 @@ public class ForumDAO {
         try {
             Forum forum =  jdbcTemplateObject.queryForObject(sql, FORUM_ROW_MAPPER, slug, title, user_nickname);
             numOfForums++;
+            forumsAndPostsNum.put(forum.getSlug(), 0);
             return forum;
         } catch (DuplicateKeyException e) {
             throw e;
@@ -73,10 +93,17 @@ public class ForumDAO {
         sql = "SELECT COUNT(*) FROM threads WHERE forum = ?";
         Integer threads = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
         forum.setThreads(threads);
-        sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
-        Integer posts = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
+//        sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
+//        Integer posts = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
+        Integer posts = forumsAndPostsNum.get(forum.getSlug());
         forum.setPosts(posts);
         return forum;
+    }
+
+    public static void addPostsNum(String forumSlug, Integer numOfPosts) {
+        Integer num = forumsAndPostsNum.get(forumSlug);
+        num += numOfPosts;
+        forumsAndPostsNum.put(forumSlug,num);
     }
 
     public static Integer getNumOfForums() {
