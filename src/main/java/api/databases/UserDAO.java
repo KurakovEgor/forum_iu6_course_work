@@ -167,8 +167,8 @@ public class UserDAO {
         return users;
     }
 
-    public List<User> getUsersFromForum(String forum_slug, Integer limit, String since, Boolean desc) {
-        String sql = "SELECT u.id, fullname, nickname, email, about FROM forums_users JOIN users u ON(user_id = u.id) WHERE forum_slug = ?::citext ";
+    public List<User> getUsersFromForum(String forumSlug, Integer limit, String since, Boolean desc) {
+        String sql = "SELECT id, nickname, fullname, email, about FROM forums_users WHERE forum_slug = ?::citext ";
         if (since != null) {
             if (desc != null && desc == true) {
                 sql += "AND nickname < ?::citext ";
@@ -186,15 +186,15 @@ public class UserDAO {
         List<User> users;
         if(since == null) {
             if (limit == null) {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forumSlug);
             } else {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, limit);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forumSlug, limit);
             }
         } else {
             if (limit == null) {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, since);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forumSlug, since);
             } else {
-                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forum_slug, since, limit);
+                users = jdbcTemplateObject.query(sql, USER_ROW_MAPPER, forumSlug, since, limit);
             }
         }
         return users;

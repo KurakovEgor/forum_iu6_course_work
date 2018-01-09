@@ -3,6 +3,7 @@ package api.databases;
 import api.Exceptions;
 import api.models.Forum;
 import api.models.Thread;
+import api.models.User;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -51,19 +52,16 @@ public class ThreadDAO {
         } catch (DuplicateKeyException e) {
             throw e;
         }
-        sql = "SELECT id FROM users WHERE nickname = ?::citext";
-        Integer userId;
+        sql = "SELECT * FROM users WHERE nickname = ?::citext";
+        User user;
         try {
-            userId = jdbcTemplateObject.queryForObject(sql, Integer.class, thread.getAuthor());
+            user = jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, thread.getAuthor());
         } catch (EmptyResultDataAccessException e) {
             throw new Exceptions.NotFoundUser();
         }
-        sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?)";
-        try {
-            jdbcTemplateObject.update(sql, thread.getForum(), userId);
-        } catch (DuplicateKeyException ignore) {
-
-        }
+        sql = "INSERT INTO forums_users (forum_slug, id, nickname, fullname, email, about) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING";
+        jdbcTemplateObject.update(sql, thread.getForum(), user.getId(), user.getNickname(),
+                    user.getFullname(), user.getEmail(), user.getAbout());
         numOfThreads++;
         return thread;
     }

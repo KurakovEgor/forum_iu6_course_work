@@ -36,10 +36,9 @@ public class User {
 
         User user = (User) o;
 
-        if (fullname != null ? !fullname.equals(user.fullname) : user.fullname != null) return false;
-        if (email != null ? !email.equals(user.email) : user.email != null) return false;
-        if (nickname != null ? !nickname.equals(user.nickname) : user.nickname != null) return false;
-        return about != null ? about.equals(user.about) : user.about == null;
+        if (id != null && id.equals(user.id)) return true;
+        if (nickname != null && nickname.equals(user.nickname)) return true;
+        return false;
     }
 
     @Override

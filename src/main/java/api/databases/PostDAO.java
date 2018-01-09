@@ -56,7 +56,7 @@ public class PostDAO {
         i++;
         List<Post> readyPosts = new ArrayList<>();
         String sql = "";
-        Set<Integer> users = new HashSet<>();
+        Set<User> users = new HashSet<>();
         try {
             for( Post post : posts) {
                 if (post.getParent() == null) {
@@ -69,6 +69,7 @@ public class PostDAO {
                     throw new Exceptions.NotFoundUser();
                 } else {
                     post.setAuthorId(user.getId());
+                    users.add(user);
                 }
             }
             for(Post post : posts) {
@@ -96,7 +97,6 @@ public class PostDAO {
             sql = "INSERT INTO posts (author, forum, is_editted, message, parent, thread_id, created, children) VALUES (?, ?, ?::BOOLEAN, ?, ?, ?, ?::TIMESTAMPTZ, ?)";
             try (PreparedStatement ps = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 for (Post post : posts) {
-                    users.add(post.getAuthorId());
                     ps.setString(1, post.getAuthor());
                     ps.setString(2, post.getForum());
                     ps.setBoolean(3, post.getIsEdited());
@@ -125,11 +125,15 @@ public class PostDAO {
             } catch (SQLException ignore) {
 
             }
-            sql = "INSERT INTO forums_users (forum_slug, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING";
+            sql = "INSERT INTO forums_users (forum_slug, id, nickname, fullname, email, about) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING";
             try (PreparedStatement ps = connection.prepareStatement(sql, Statement.NO_GENERATED_KEYS)) {
-                for (Integer user : users) {
+                for (User user : users) {
                     ps.setObject(1, readyPosts.get(0).getForum());
-                    ps.setObject(2, user);
+                    ps.setObject(2, user.getId());
+                    ps.setObject(3, user.getNickname());
+                    ps.setObject(4, user.getFullname());
+                    ps.setObject(5, user.getEmail());
+                    ps.setObject(6, user.getAbout());
                     ps.addBatch();
                 }
                 ps.executeBatch();
