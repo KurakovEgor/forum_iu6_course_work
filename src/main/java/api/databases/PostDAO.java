@@ -147,7 +147,9 @@ public class PostDAO {
             } catch (SQLException ex) {
                 LOGGER.error("Problem with users by forum adding", ex);
             }
-            numOfPosts.set(numOfPosts.intValue() + readyPosts.size());
+            for(int i = 0; i < readyPosts.size(); ++i) {
+                numOfPosts.incrementAndGet();
+            }
             if (numOfPosts.intValue() > 1499999) {
                 jdbcTemplateObject.execute("VACUUM ANALYZE");
             }
