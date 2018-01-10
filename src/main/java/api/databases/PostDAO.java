@@ -148,9 +148,9 @@ public class PostDAO {
                 LOGGER.error("Problem with users by forum adding", ex);
             }
             numOfPosts.set(numOfPosts.intValue() + readyPosts.size());
-//            if (numOfPosts.intValue() > 1499999) {
-//                jdbcTemplateObject.execute("VACUUM ANALYZE");
-//            }
+            if (numOfPosts.intValue() > 1499999) {
+                jdbcTemplateObject.execute("VACUUM ANALYZE");
+            }
             if (!readyPosts.isEmpty()) {
                 ForumDAO.addPostsNum(readyPosts.get(0).getForum(), readyPosts.size());
             }
