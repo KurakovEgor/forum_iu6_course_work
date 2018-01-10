@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static api.databases.Mappers.FORUM_ROW_MAPPER;
 import static api.databases.Mappers.THREAD_ROW_MAPPER;
@@ -27,13 +28,13 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
 @Service
 public class ThreadDAO {
     private JdbcTemplate jdbcTemplateObject;
-    private static Integer numOfThreads;
+    private static AtomicInteger numOfThreads = new AtomicInteger();
     public ThreadDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
         try {
-            numOfThreads = numOfThreads();
+            numOfThreads.set(numOfThreads());
         } catch (BadSqlGrammarException ex) {
-            numOfThreads = 0;
+            numOfThreads.set(0);
         }
     }
     public Thread createThread(String slug, String author, String created, String forum, String message, String title) {
@@ -62,7 +63,8 @@ public class ThreadDAO {
         sql = "INSERT INTO forums_users (forum_slug, id, nickname, fullname, email, about) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING";
         jdbcTemplateObject.update(sql, thread.getForum(), user.getId(), user.getNickname(),
                     user.getFullname(), user.getEmail(), user.getAbout());
-        numOfThreads++;
+        numOfThreads.incrementAndGet();
+        ForumDAO.addThreadsNum(thread.getForum(),1);
         return thread;
     }
     public Thread getThreadBySlug(String slug) {
@@ -328,10 +330,10 @@ public class ThreadDAO {
     }
 
     public static Integer getNumOfThreads() {
-        return numOfThreads;
+        return numOfThreads.intValue();
     }
 
     public static void setNumOfThreads(Integer numOfThreads) {
-        ThreadDAO.numOfThreads = numOfThreads;
+        ThreadDAO.numOfThreads.set(numOfThreads);
     }
 }

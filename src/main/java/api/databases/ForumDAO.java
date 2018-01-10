@@ -2,26 +2,18 @@ package api.databases;
 
 import api.Exceptions;
 import api.models.Forum;
-import api.models.User;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.attribute.UserPrincipalNotFoundException;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static api.databases.Mappers.FORUM_ROW_MAPPER;
-import static api.databases.Mappers.USER_ROW_MAPPER;
 
 /**
  * Created by egor on 15.10.17.
@@ -30,16 +22,17 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
 @Service
 public class ForumDAO {
     private JdbcTemplate jdbcTemplateObject;
-    private static Integer numOfForums;
-    private static Map<String,Integer> forumsAndPostsNum = new HashMap<>();
+    private static AtomicInteger numOfForums = new AtomicInteger();
+    private static Map<String, AtomicInteger> forumsAndPostsNum = new ConcurrentHashMap<>();
+    private static Map<String, AtomicInteger> forumsAndThreadsNum = new ConcurrentHashMap<>();
 
     public ForumDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
         try {
-            numOfForums = numOfForums();
+            numOfForums.set(numOfForums());
             fillForumsAndPostsMap();
         } catch (BadSqlGrammarException ex) {
-            numOfForums = 0;
+            numOfForums.set(0);
         }
     }
     private List<String> getForumSlugs() {
@@ -52,7 +45,12 @@ public class ForumDAO {
         for (String forum : forums) {
             String sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
             Integer posts = jdbcTemplateObject.queryForObject(sql, Integer.class, forum);
-            forumsAndPostsNum.put(forum,posts);
+            forumsAndPostsNum.put(forum, new AtomicInteger(posts));
+        }
+        for (String forum : forums) {
+            String sql = "SELECT COUNT(*) FROM threads WHERE forum = ?";
+            Integer threads = jdbcTemplateObject.queryForObject(sql, Integer.class, forum);
+            forumsAndThreadsNum.put(forum, new AtomicInteger(threads));
         }
     }
 
@@ -67,8 +65,9 @@ public class ForumDAO {
         sql = "INSERT INTO forums (slug, title, user_nickname) VALUES (?, ?, ?) RETURNING *";
         try {
             Forum forum =  jdbcTemplateObject.queryForObject(sql, FORUM_ROW_MAPPER, slug, title, user_nickname);
-            numOfForums++;
-            forumsAndPostsNum.put(forum.getSlug(), 0);
+            numOfForums.incrementAndGet();
+            forumsAndPostsNum.put(forum.getSlug(), new AtomicInteger(0));
+            forumsAndThreadsNum.put(forum.getSlug(), new AtomicInteger(0));
             return forum;
         } catch (DuplicateKeyException e) {
             throw e;
@@ -89,27 +88,28 @@ public class ForumDAO {
         } catch (EmptyResultDataAccessException e) {
             throw new Exceptions.NotFoundForum();
         }
-        sql = "SELECT COUNT(*) FROM threads WHERE forum = ?";
-        Integer threads = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
+        Integer threads = forumsAndThreadsNum.get(forum.getSlug()).intValue();
         forum.setThreads(threads);
-//        sql = "SELECT COUNT(*) FROM posts WHERE forum = ?";
-//        Integer posts = jdbcTemplateObject.queryForObject(sql, Integer.class, forum.getSlug());
-        Integer posts = forumsAndPostsNum.get(forum.getSlug());
+        Integer posts = forumsAndPostsNum.get(forum.getSlug()).intValue();
         forum.setPosts(posts);
         return forum;
     }
 
     public static void addPostsNum(String forumSlug, Integer numOfPosts) {
-        Integer num = forumsAndPostsNum.get(forumSlug);
-        num += numOfPosts;
-        forumsAndPostsNum.put(forumSlug,num);
+        AtomicInteger num = forumsAndPostsNum.get(forumSlug);
+        num.set(num.intValue() + numOfPosts);
+    }
+
+    public static void addThreadsNum(String forumSlug, Integer numOfThreads) {
+        AtomicInteger num = forumsAndThreadsNum.get(forumSlug);
+        num.set(num.intValue() + numOfThreads);
     }
 
     public static Integer getNumOfForums() {
-        return numOfForums;
+        return numOfForums.intValue();
     }
 
     public static void setNumOfForums(Integer numOfForums) {
-        ForumDAO.numOfForums = numOfForums;
+        ForumDAO.numOfForums.set(numOfForums);
     }
 }

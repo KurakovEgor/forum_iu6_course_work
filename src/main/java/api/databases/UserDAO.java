@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static api.databases.Mappers.USER_ROW_MAPPER;
 
@@ -25,14 +26,14 @@ import static api.databases.Mappers.USER_ROW_MAPPER;
 public class UserDAO {
 
     private JdbcTemplate jdbcTemplateObject;
-    private static Integer numOfUsers;
+    private static AtomicInteger numOfUsers = new AtomicInteger();
 
     public UserDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
         try {
-            numOfUsers = numOfUsers();
+            numOfUsers.set(numOfUsers());
         } catch (BadSqlGrammarException ex) {
-            numOfUsers = 0;
+            numOfUsers.set(0);
         }
     }
 
@@ -44,7 +45,7 @@ public class UserDAO {
         try {
             String str = new String();
             user =  jdbcTemplateObject.queryForObject(sql, USER_ROW_MAPPER, about, email, fullname, nickname);
-            numOfUsers++;
+            numOfUsers.incrementAndGet();
             return user;
         } catch (DuplicateKeyException e) {
             throw e;
@@ -206,10 +207,10 @@ public class UserDAO {
     }
 
     public static Integer getNumOfUsers() {
-        return numOfUsers;
+        return numOfUsers.intValue();
     }
 
     public static void setNumOfUsers(Integer numOfUsers) {
-        UserDAO.numOfUsers = numOfUsers;
+        UserDAO.numOfUsers.set(numOfUsers);
     }
 }

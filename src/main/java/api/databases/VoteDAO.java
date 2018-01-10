@@ -24,11 +24,6 @@ public class VoteDAO {
 
     private JdbcTemplate jdbcTemplateObject;
 
-    @Autowired
-    private  ThreadDAO threadDAO;
-    @Autowired
-    private UserDAO userDAO;
-
     public VoteDAO(JdbcTemplate jdbcTemplateObject) {
         this.jdbcTemplateObject = jdbcTemplateObject;
     }
