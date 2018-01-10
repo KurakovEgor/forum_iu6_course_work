@@ -319,7 +319,7 @@ public class PostDAO {
     }
 
     private List<Post> getPostFromThreadSortedByTree(Thread thread, Integer limit, Integer since, Boolean desc) {
-        String sql = "SELECT * FROM posts WHERE thread_id = ? ORDER BY children";
+        String sql = "SELECT author, created, forum, id, is_editted, message, parent, thread_id, children FROM posts WHERE thread_id = ? ORDER BY children";
         if (desc != null && desc == true) {
             sql += " DESC";
         }
