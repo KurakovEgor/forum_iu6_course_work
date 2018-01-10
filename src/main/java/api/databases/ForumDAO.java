@@ -97,12 +97,14 @@ public class ForumDAO {
 
     public static void addPostsNum(String forumSlug, Integer numOfPosts) {
         AtomicInteger num = forumsAndPostsNum.get(forumSlug);
-        num.set(num.intValue() + numOfPosts);
+        for(int i = 0; i < numOfPosts; ++i) {
+            num.incrementAndGet();
+        }
     }
 
-    public static void addThreadsNum(String forumSlug, Integer numOfThreads) {
+    public static void addThreadsNum(String forumSlug) {
         AtomicInteger num = forumsAndThreadsNum.get(forumSlug);
-        num.set(num.intValue() + numOfThreads);
+        num.incrementAndGet();
     }
 
     public static Integer getNumOfForums() {

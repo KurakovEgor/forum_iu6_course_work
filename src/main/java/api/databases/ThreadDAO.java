@@ -64,7 +64,7 @@ public class ThreadDAO {
         jdbcTemplateObject.update(sql, thread.getForum(), user.getId(), user.getNickname(),
                     user.getFullname(), user.getEmail(), user.getAbout());
         numOfThreads.incrementAndGet();
-        ForumDAO.addThreadsNum(thread.getForum(),1);
+        ForumDAO.addThreadsNum(thread.getForum());
         return thread;
     }
     public Thread getThreadBySlug(String slug) {
