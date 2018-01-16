@@ -150,9 +150,9 @@ public class PostDAO {
             for(int i = 0; i < readyPosts.size(); ++i) {
                 numOfPosts.incrementAndGet();
             }
-            if (numOfPosts.intValue() > 1499999) {
-                jdbcTemplateObject.execute("VACUUM ANALYZE");
-            }
+//            if (numOfPosts.intValue() > 1499999) {
+//                jdbcTemplateObject.execute("VACUUM ANALYZE");
+//            }
             if (!readyPosts.isEmpty()) {
                 ForumDAO.addPostsNum(readyPosts.get(0).getForum(), readyPosts.size());
             }
